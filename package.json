@@ -1,0 +1,21 @@
+{
+    "name": "google-maps-crawler-extension",
+    "version": "1.0.0",
+    "description": "Chrome extension để crawl dữ liệu từ Google Maps",
+    "main": "background.js",
+    "scripts": {
+        "build": "echo 'Extension build complete'",
+        "dev": "echo 'Development mode - load extension in Chrome'",
+        "create-icons": "start create_icons.html"
+    },
+    "keywords": [
+        "chrome-extension",
+        "google-maps",
+        "crawler",
+        "data-extraction"
+    ],
+    "author": "Your Name",
+    "license": "MIT",
+    "devDependencies": {},
+    "dependencies": {}
+}

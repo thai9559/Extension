@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Google Maps Crawler</title>
+    <style>
+        body {
+            width: 300px;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        button {
+            padding: 10px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background-color: #3367d6;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Google Maps Crawler</h2>
+
+        <button id="startCrawl">Bắt đầu Crawl</button>
+        <button id="stopCrawl">Dừng Crawl</button>
+        <button id="resumeCrawl" style="display:none; background-color: #34a853;">Tiếp tục Crawl</button>
+        <button id="exportData">Xuất Dữ Liệu</button>
+        <button id="clearData">Xóa Dữ Liệu</button>
+
+        <div id="status" class="status info" style="display: none;">
+            Sẵn sàng để crawl dữ liệu
+        </div>
+
+        <div id="progress" style="display: none;">
+            <p>Đã crawl: <span id="crawledCount">0</span> địa điểm</p>
+            <p>Auto click: <span id="autoClickStatus">Đang chạy...</span></p>
+            <p>Auto scroll: <span id="autoScrollStatus">Đang chạy...</span></p>
+            <p>Item hiện tại: <span id="currentItem">0</span> / <span id="totalItems">0</span></p>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

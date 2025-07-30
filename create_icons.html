@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Create Icons</title>
+</head>
+
+<body>
+    <canvas id="canvas16" width="16" height="16"></canvas>
+    <canvas id="canvas48" width="48" height="48"></canvas>
+    <canvas id="canvas128" width="128" height="128"></canvas>
+
+    <script>
+        function drawIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+
+            // Background
+            ctx.fillStyle = '#4285f4';
+            ctx.fillRect(0, 0, size, size);
+
+            // Map icon
+            ctx.fillStyle = 'white';
+            const margin = size * 0.2;
+            const iconSize = size - 2 * margin;
+
+            // Draw map shape
+            ctx.beginPath();
+            ctx.moveTo(margin, margin + iconSize * 0.3);
+            ctx.lineTo(margin + iconSize * 0.4, margin);
+            ctx.lineTo(margin + iconSize * 0.7, margin + iconSize * 0.2);
+            ctx.lineTo(margin + iconSize, margin + iconSize * 0.4);
+            ctx.lineTo(margin + iconSize, margin + iconSize * 0.8);
+            ctx.lineTo(margin + iconSize * 0.7, margin + iconSize);
+            ctx.lineTo(margin + iconSize * 0.4, margin + iconSize * 0.8);
+            ctx.lineTo(margin, margin + iconSize * 0.9);
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw location pin
+            ctx.fillStyle = '#ea4335';
+            ctx.beginPath();
+            ctx.arc(margin + iconSize * 0.5, margin + iconSize * 0.6, iconSize * 0.15, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Download as PNG
+            const link = document.createElement('a');
+            link.download = `icon${size}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        // Create icons
+        drawIcon('canvas16', 16);
+        drawIcon('canvas48', 48);
+        drawIcon('canvas128', 128);
+    </script>
+</body>
+
+</html>
