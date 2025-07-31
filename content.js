@@ -36,6 +36,21 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   }
   return true;
 });
+function waitForDetailPanel(callback, retry = 0) {
+  const panel =
+    document.querySelector(".Qo7lzb") ||
+    document.querySelector(".lMbq3e") ||
+    document.querySelector(".x3AX1-LfntMc-header-title");
+
+  if (panel && panel.clientHeight > 50) {
+    callback();
+  } else if (retry < 10) {
+    setTimeout(() => waitForDetailPanel(callback, retry + 1), 500);
+  } else {
+    console.warn("⏳ Panel chưa load sau nhiều lần thử → bỏ qua crawl");
+    callback(); // fallback để không block
+  }
+}
 
 // Bắt đầu auto scroll
 function startAutoScroll() {
@@ -207,44 +222,33 @@ function stopCrawling() {
 // Hàm crawl dữ liệu chính
 function crawlData() {
   try {
-    // Kiểm tra trạng thái
-    if (!isCrawling) {
-      console.log("Crawl đã dừng, không thực hiện crawlData");
-      return;
-    }
+    // if (!chrome.runtime?.id) {
+    //   console.warn("⚠️ Extension context invalidated, skip crawlData");
+    //   return;
+    // }
 
-    // Lấy thông tin địa điểm hiện tại
+    if (!isCrawling) return;
+
     const placeData = extractPlaceData();
 
     if (placeData && placeData.name) {
-      // Lưu dữ liệu vào storage
       savePlaceData(placeData);
-
-      // Thông báo cập nhật count
       chrome.runtime.sendMessage({ action: "updateCount" });
-
-      console.log("Đã crawl:", placeData.name);
+      console.log("📌 Đã crawl:", placeData.name);
     }
 
-    // Lấy danh sách các địa điểm trong kết quả tìm kiếm
-    const searchResults = extractSearchResults();
+    const extracted = extractSearchResults();
+    searchResults = extracted;
+    console.log("✅ Đã extract", extracted.length, "item vào searchResults");
 
-    if (searchResults && searchResults.length > 0) {
-      searchResults.forEach((place) => {
-        if (place.name) {
-          savePlaceData(place);
-        }
-      });
-
-      chrome.runtime.sendMessage({ action: "updateCount" });
-      console.log("Đã crawl thêm", searchResults.length, "địa điểm");
-    }
+    extracted.forEach((place) => {
+      if (place.name) savePlaceData(place);
+    });
   } catch (error) {
-    console.error("Lỗi khi crawl dữ liệu:", error);
+    console.error("❌ Lỗi khi crawl dữ liệu:", error);
     errorCount++;
-
     if (errorCount >= MAX_ERROR_COUNT) {
-      console.error("Quá nhiều lỗi khi crawl, dừng crawl");
+      console.error("🚫 Quá nhiều lỗi khi crawl, dừng crawl");
       stopCrawling();
     }
   }
@@ -602,7 +606,14 @@ function startAutoClick() {
   findSearchResults();
 
   // Bắt đầu click với delay
-  autoClickInterval = setInterval(autoClickNext, 5000); // Click mỗi 5 giây
+  function scheduleNextClick(delay = 5000) {
+    if (!isAutoClicking) return;
+    setTimeout(() => {
+      autoClickNext();
+      scheduleNextClick(); // gọi tiếp vòng sau
+    }, delay);
+  }
+  scheduleNextClick(); // khởi động lần đầu
 }
 
 // Dừng auto click
@@ -640,66 +651,38 @@ function findSearchResults() {
 
 // Tự động click vào item tiếp theo
 function autoClickNext() {
-  try {
-    if (!isAutoClicking) return;
+  if (!isAutoClicking) return;
 
-    // Cập nhật danh sách kết quả trước khi click
-    findSearchResults();
+  findSearchResults();
+  if (currentItemIndex >= searchResults.length) {
+    console.log("Hết danh sách, dừng auto click");
+    stopAutoClick();
+    return;
+  }
 
-    if (searchResults.length === 0) {
-      console.log("Không tìm thấy items, chờ...");
-      return;
-    }
+  const currentItem = searchResults[currentItemIndex];
+  if (!currentItem) {
+    console.warn("⚠️ Item không tồn tại trong DOM, bỏ qua...");
+    return;
+  }
 
-    // Nếu đã click hết items hiện tại, reset về đầu
-    if (currentItemIndex >= searchResults.length) {
-      console.log("Reset về đầu danh sách items");
-      currentItemIndex = 0;
-    }
+  console.log(`🖱 Click item ${currentItemIndex + 1}/${searchResults.length}`);
+  currentItem.scrollIntoView({ behavior: "smooth", block: "center" });
+  currentItem.click();
 
-    const currentItem = searchResults[currentItemIndex];
-    if (!currentItem) {
-      console.log("Item hiện tại không tồn tại, bỏ qua");
-      currentItemIndex++;
-      return;
-    }
+  waitForDetailPanel(() => {
+    crawlData(); // chỉ crawl khi panel chắc chắn có
+    currentItemIndex++; // tăng index sau khi crawl xong
 
-    console.log(
-      "Click vào item",
-      currentItemIndex + 1,
-      "trong",
-      searchResults.length
-    );
-
-    // Click vào item
-    currentItem.click();
-
-    // Tăng index
-    currentItemIndex++;
-
-    // Kiểm tra xem có cần scroll không (chỉ scroll khi gần hết danh sách)
     if (shouldScrollMore()) {
-      console.log(`=== TRIGGER SCROLL (gần hết danh sách) ===`);
       setTimeout(() => {
         autoScroll();
         setTimeout(() => {
-          findSearchResults();
-          // Không tăng currentItemIndex ở đây, để tiếp tục với item mới
-        }, 2000);
-      }, 2000);
+          findSearchResults(); // cập nhật lại list
+        }, 1000);
+      }, 1000);
     }
-
-    // Delay trước khi crawl dữ liệu
-    setTimeout(() => {
-      if (isCrawling) {
-        crawlData();
-      }
-    }, 2000);
-  } catch (error) {
-    console.error("Lỗi khi auto click:", error);
-    errorCount++;
-    currentItemIndex++;
-  }
+  });
 }
 
 // Trích xuất danh sách kết quả tìm kiếm
@@ -792,6 +775,8 @@ function clearOldData() {
 
 // Lưu dữ liệu vào storage
 function savePlaceData(placeData) {
+  if (!chrome.runtime?.id || typeof chrome.runtime?.id !== "string") return;
+
   try {
     chrome.storage.local.get(["crawledData"], function (result) {
       try {
@@ -870,20 +855,6 @@ function savePlaceData(placeData) {
     }
   }
 }
-
-// Lắng nghe message từ popup để tiếp tục crawl
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-  if (request.action === "resumeCrawl") {
-    isCrawling = true;
-    errorCount = 0;
-    chrome.storage.local.set({ resumeNeeded: false });
-    console.log("Tiếp tục crawl từ vị trí hiện tại...");
-    startAutoClick();
-    startAutoScroll();
-    crawlData();
-    sendResponse({ success: true });
-  }
-});
 
 // Khởi tạo khi trang load xong
 document.addEventListener("DOMContentLoaded", function () {
