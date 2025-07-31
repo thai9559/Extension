@@ -238,8 +238,7 @@ function crawlData() {
     }
 
     const extracted = extractSearchResults();
-    searchResults = extracted;
-    console.log("✅ Đã extract", extracted.length, "item vào searchResults");
+    console.log("✅ Đã extract", extracted.length, "kết quả từ sidebar");
 
     extracted.forEach((place) => {
       if (place.name) savePlaceData(place);
