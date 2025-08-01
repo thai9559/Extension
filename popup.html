@@ -4,6 +4,8 @@
 <head>
     <meta charset="utf-8">
     <title>Google Maps Crawler</title>
+    <script src="libs/xlsx.full.min.js"></script>
+
     <style>
         body {
             width: 300px;
@@ -65,6 +67,8 @@
 <body>
     <div class="container">
         <h2>Google Maps Crawler</h2>
+        <input type="text" id="searchKeyword" placeholder="Nhập từ khóa (VD: trà sữa Quận 1)" />
+        <button id="searchButton" style="background-color: #fbbc05;">Tìm kiếm & Crawl</button>
 
         <button id="startCrawl">Bắt đầu Crawl</button>
         <button id="stopCrawl">Dừng Crawl</button>

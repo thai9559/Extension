@@ -138,7 +138,6 @@ function startCrawling() {
     clearOldData();
 
     // Bắt đầu crawl với interval
-    crawlInterval = setInterval(crawlData, 3000); // Crawl mỗi 3 giây
 
     // Bắt đầu auto click
     startAutoClick();
@@ -198,37 +197,35 @@ function stopCrawling() {
 // Hàm crawl dữ liệu chính
 function crawlData() {
   try {
-    if (!chrome.runtime?.id || typeof chrome.runtime?.id !== "string") {
-      console.warn("⚠️ Extension context invalidated, skip crawlData");
-      return;
-    }
-
     if (!isCrawling) return;
 
     const placeData = extractPlaceData();
 
     if (placeData && placeData.name) {
-      savePlaceData(placeData);
-      try {
-        chrome.runtime.sendMessage({ action: "updateCount" });
-      } catch (e) {
-        console.warn("Không gửi được updateCount:", e.message);
+      // DEBUG: kiểm tra DOM thật sự có bao nhiêu link FB
+      const fbLinks = document.querySelectorAll('a[href*="facebook.com"]');
+      console.log(`📘 Có ${fbLinks.length} link FB trong DOM`);
+
+      // Nếu không tìm thấy FB, chờ thêm rồi thử lại 1 lần duy nhất
+      if (!placeData.facebook && fbLinks.length > 0) {
+        placeData.facebook = fbLinks[0].href;
+        console.log(
+          "⚠️ Facebook chưa load đúng, dùng link đầu tiên:",
+          placeData.facebook
+        );
       }
 
-      console.log("📌 Đã crawl:", placeData.name);
+      savePlaceData(placeData);
+      chrome.runtime.sendMessage({ action: "updateCount" });
+      console.log("✅ Đã crawl:", placeData.name);
+    } else {
+      console.warn("❌ Không extract được dữ liệu từ panel chi tiết");
     }
-
-    const extracted = extractSearchResults();
-    console.log("✅ Đã extract", extracted.length, "kết quả từ sidebar");
-
-    extracted.forEach((place) => {
-      if (place.name) savePlaceData(place);
-    });
   } catch (error) {
     console.error("❌ Lỗi khi crawl dữ liệu:", error);
     errorCount++;
     if (errorCount >= MAX_ERROR_COUNT) {
-      console.error("🚫 Quá nhiều lỗi khi crawl, dừng crawl");
+      console.error("🚫 Quá nhiều lỗi, dừng crawl");
       stopCrawling();
     }
   }
@@ -851,7 +848,6 @@ setInterval(() => {
     }
   }
 }, 1000);
-
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   try {
     if (request.action === "startCrawl") {
@@ -870,13 +866,44 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
       });
     } else if (request.action === "resumeCrawl") {
       console.log("🔄 Tiếp tục crawl sau khi reload...");
-      isCrawling = false; // Reset để được start lại
+      isCrawling = false;
       startCrawling();
       sendResponse({ success: true });
+    } else if (request.action === "searchKeyword") {
+      const input = document.getElementById("searchboxinput");
+      const searchBtn = document.getElementById("searchbox-searchbutton");
+
+      if (!input || !searchBtn) {
+        console.warn("❌ Không tìm thấy thanh tìm kiếm.");
+        alert("Không tìm thấy thanh tìm kiếm trên Google Maps.");
+        sendResponse({ success: false });
+        return;
+      }
+
+      // Nhập từ khóa
+      input.focus();
+      input.value = request.keyword;
+
+      // Trigger sự kiện input để Maps nhận
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+
+      // Đợi chút rồi click nút tìm kiếm
+      setTimeout(() => {
+        searchBtn.click();
+        console.log("🔍 Đã tìm kiếm:", request.keyword);
+
+        // Đợi Maps load kết quả rồi mới crawl
+        setTimeout(() => {
+          startCrawling();
+        }, 3000);
+
+        sendResponse({ success: true });
+      }, 300);
     }
   } catch (error) {
-    console.error("Lỗi khi xử lý message:", error);
+    console.error("❌ Lỗi khi xử lý message:", error);
     sendResponse({ success: false, error: error.message });
   }
+
   return true;
 });

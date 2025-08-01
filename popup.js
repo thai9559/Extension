@@ -11,6 +11,37 @@ document.addEventListener("DOMContentLoaded", function () {
   const currentItemSpan = document.getElementById("currentItem");
   const totalItemsSpan = document.getElementById("totalItems");
   const resumeButton = document.getElementById("resumeCrawl");
+  const searchButton = document.getElementById("searchButton");
+  const searchKeywordInput = document.getElementById("searchKeyword");
+
+  searchButton.addEventListener("click", function () {
+    const keyword = searchKeywordInput.value.trim();
+    if (!keyword) {
+      showStatus("Vui lòng nhập từ khóa tìm kiếm!", "error");
+      return;
+    }
+
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      chrome.tabs.sendMessage(
+        tabs[0].id,
+        { action: "searchKeyword", keyword: keyword },
+        function (response) {
+          if (chrome.runtime.lastError) {
+            showStatus(
+              "Không thể gửi lệnh tìm kiếm. Hãy mở lại Google Maps.",
+              "error"
+            );
+            return;
+          }
+          if (response && response.success) {
+            showStatus("Đã gửi từ khóa tìm kiếm, đợi crawl...", "success");
+          } else {
+            showStatus("Tìm kiếm thất bại.", "error");
+          }
+        }
+      );
+    });
+  });
 
   // Kiểm tra xem có đang ở trang Google Maps không
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -63,39 +94,191 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Xuất dữ liệu
+  // exportButton.addEventListener("click", function () {
+  //   chrome.storage.local.get(["crawledData"], function (result) {
+  //     if (result.crawledData && result.crawledData.length > 0) {
+  //       try {
+  //         const dataStr = JSON.stringify(result.crawledData, null, 2);
+  //         const dataBlob = new Blob([dataStr], { type: "application/json" });
+  //         const url = URL.createObjectURL(dataBlob);
+
+  //         chrome.downloads.download(
+  //           {
+  //             url: url,
+  //             filename: "google_maps_data.json",
+  //             saveAs: true,
+  //           },
+  //           function (downloadId) {
+  //             if (chrome.runtime.lastError) {
+  //               console.error("Lỗi download:", chrome.runtime.lastError);
+  //               showStatus(
+  //                 "Lỗi khi xuất dữ liệu: " + chrome.runtime.lastError.message,
+  //                 "error"
+  //               );
+  //             } else {
+  //               showStatus("Đã xuất dữ liệu thành công", "success");
+  //             }
+  //           }
+  //         );
+  //       } catch (error) {
+  //         console.error("Lỗi khi tạo file:", error);
+  //         showStatus("Lỗi khi tạo file dữ liệu", "error");
+  //       }
+  //     } else {
+  //       showStatus("Không có dữ liệu để xuất", "error");
+  //     }
+  //   });
+  // });
   exportButton.addEventListener("click", function () {
     chrome.storage.local.get(["crawledData"], function (result) {
-      if (result.crawledData && result.crawledData.length > 0) {
-        try {
-          const dataStr = JSON.stringify(result.crawledData, null, 2);
-          const dataBlob = new Blob([dataStr], { type: "application/json" });
-          const url = URL.createObjectURL(dataBlob);
+      const raw = result.crawledData || [];
 
-          chrome.downloads.download(
-            {
-              url: url,
-              filename: "google_maps_data.json",
-              saveAs: true,
-            },
-            function (downloadId) {
-              if (chrome.runtime.lastError) {
-                console.error("Lỗi download:", chrome.runtime.lastError);
-                showStatus(
-                  "Lỗi khi xuất dữ liệu: " + chrome.runtime.lastError.message,
-                  "error"
-                );
-              } else {
-                showStatus("Đã xuất dữ liệu thành công", "success");
-              }
-            }
-          );
-        } catch (error) {
-          console.error("Lỗi khi tạo file:", error);
-          showStatus("Lỗi khi tạo file dữ liệu", "error");
-        }
-      } else {
+      if (raw.length === 0) {
         showStatus("Không có dữ liệu để xuất", "error");
+        return;
       }
+
+      // Hàm tách địa chỉ thành các phần
+      function parseAddress(address) {
+        if (!address) return {};
+        address = address
+          .replace(/,\s*Việt Nam/i, "")
+          .replace(/\d{5,6}/g, "")
+          .trim();
+        const parts = address.split(",").map((p) => p.trim());
+        const partLen = parts.length;
+
+        let street = "",
+          ward = "",
+          district = "",
+          city = "";
+        if (partLen >= 4) {
+          city = parts[partLen - 1];
+          district = parts[partLen - 2];
+          ward = parts[partLen - 3];
+          street = parts.slice(0, partLen - 3).join(", ");
+        } else if (partLen === 3) {
+          city = parts[2];
+          district = parts[1];
+          street = parts[0];
+        } else {
+          street = address;
+        }
+
+        return {
+          street,
+          ward,
+          district,
+          city,
+        };
+      }
+
+      // 🧹 1. Làm sạch và định dạng lại dữ liệu
+      const cleanedData = raw.map((item, index) => {
+        const cleanText = (text) =>
+          typeof text === "string"
+            ? text.replace(/^[^\w\d\s]+/g, "").trim()
+            : "";
+
+        // Format số điện thoại
+        let phone = item.phone || "";
+        if (phone.startsWith("+84")) {
+          phone = "0" + phone.slice(3);
+        } else if (phone.startsWith("84")) {
+          phone = "0" + phone.slice(2);
+        }
+
+        // Format ngày
+        let date = "";
+        try {
+          date = new Date(item.timestamp).toLocaleDateString("vi-VN");
+        } catch {}
+
+        // Tách địa chỉ
+        const { street, ward, district, city } = parseAddress(
+          item.address || ""
+        );
+
+        return {
+          STT: index + 1,
+          NAME: cleanText(item.name),
+          STREET: cleanText(street),
+          WARD: cleanText(ward),
+          DISTRICT: cleanText(district),
+          CITY: cleanText(city),
+          CATEGORY: item.category || "",
+          DESCRIPTION: item.description || "",
+          FACEBOOK: item.facebook || "",
+          WEBSITE: item.website || "",
+          PHONE: phone,
+          OPENING_HOURS: item.openingHours || "",
+          RATING: item.rating || "",
+          REVIEWS: item.reviews || "",
+          TIMESTAMP: date,
+        };
+      });
+
+      // 🧾 2. Tạo worksheet từ JSON
+      const worksheet = XLSX.utils.json_to_sheet(cleanedData);
+
+      // 🎨 3. Style tiêu đề
+      const headers = Object.keys(cleanedData[0]);
+      headers.forEach((key, colIdx) => {
+        const cellAddr = XLSX.utils.encode_cell({ r: 0, c: colIdx });
+        if (!worksheet[cellAddr]) return;
+        worksheet[cellAddr].s = {
+          font: { name: "Arial", sz: 16, bold: true },
+          alignment: { horizontal: "center", vertical: "center" },
+        };
+      });
+
+      // 💅 4. Style dữ liệu
+      const range = XLSX.utils.decode_range(worksheet["!ref"]);
+      for (let R = 1; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const addr = XLSX.utils.encode_cell({ r: R, c: C });
+          if (worksheet[addr]) {
+            worksheet[addr].s = {
+              font: { name: "Arial", sz: 16 },
+              alignment: { vertical: "center" },
+            };
+          }
+        }
+      }
+
+      // 📏 5. Set độ rộng cột
+      worksheet["!cols"] = headers.map(() => ({ wch: 25 }));
+
+      // 📚 6. Tạo file Excel
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Google Maps Data");
+
+      const buffer = XLSX.write(workbook, {
+        bookType: "xlsx",
+        type: "array",
+        cellStyles: true,
+      });
+      const blob = new Blob([buffer], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+
+      chrome.downloads.download(
+        {
+          url: url,
+          filename: "google_maps_data.xlsx",
+          saveAs: true,
+        },
+        function (downloadId) {
+          if (chrome.runtime.lastError) {
+            console.error("Lỗi download:", chrome.runtime.lastError);
+            showStatus(
+              "Lỗi khi xuất dữ liệu: " + chrome.runtime.lastError.message,
+              "error"
+            );
+          } else {
+            showStatus("✅ Đã xuất Excel có định dạng chuẩn", "success");
+          }
+        }
+      );
     });
   });
 
