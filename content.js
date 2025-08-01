@@ -12,30 +12,6 @@ let errorCount = 0;
 const MAX_SCROLL_ATTEMPTS = 10;
 const MAX_ERROR_COUNT = 5;
 
-// Lắng nghe message từ popup
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-  try {
-    if (request.action === "startCrawl") {
-      startCrawling();
-      sendResponse({ success: true });
-    } else if (request.action === "stopCrawl") {
-      stopCrawling();
-      sendResponse({ success: true });
-    } else if (request.action === "getAutoClickInfo") {
-      sendResponse({
-        success: true,
-        isAutoClicking: isAutoClicking,
-        isAutoScrolling: isAutoScrolling,
-        currentIndex: currentItemIndex,
-        totalItems: searchResults.length,
-      });
-    }
-  } catch (error) {
-    console.error("Lỗi khi xử lý message:", error);
-    sendResponse({ success: false, error: error.message });
-  }
-  return true;
-});
 function waitForDetailPanel(callback, retry = 0) {
   const panel =
     document.querySelector(".Qo7lzb") ||
@@ -222,10 +198,10 @@ function stopCrawling() {
 // Hàm crawl dữ liệu chính
 function crawlData() {
   try {
-    // if (!chrome.runtime?.id) {
-    //   console.warn("⚠️ Extension context invalidated, skip crawlData");
-    //   return;
-    // }
+    if (!chrome.runtime?.id || typeof chrome.runtime?.id !== "string") {
+      console.warn("⚠️ Extension context invalidated, skip crawlData");
+      return;
+    }
 
     if (!isCrawling) return;
 
@@ -233,7 +209,12 @@ function crawlData() {
 
     if (placeData && placeData.name) {
       savePlaceData(placeData);
-      chrome.runtime.sendMessage({ action: "updateCount" });
+      try {
+        chrome.runtime.sendMessage({ action: "updateCount" });
+      } catch (e) {
+        console.warn("Không gửi được updateCount:", e.message);
+      }
+
       console.log("📌 Đã crawl:", placeData.name);
     }
 
@@ -870,3 +851,32 @@ setInterval(() => {
     }
   }
 }, 1000);
+
+chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+  try {
+    if (request.action === "startCrawl") {
+      startCrawling();
+      sendResponse({ success: true });
+    } else if (request.action === "stopCrawl") {
+      stopCrawling();
+      sendResponse({ success: true });
+    } else if (request.action === "getAutoClickInfo") {
+      sendResponse({
+        success: true,
+        isAutoClicking: isAutoClicking,
+        isAutoScrolling: isAutoScrolling,
+        currentIndex: currentItemIndex,
+        totalItems: searchResults.length,
+      });
+    } else if (request.action === "resumeCrawl") {
+      console.log("🔄 Tiếp tục crawl sau khi reload...");
+      isCrawling = false; // Reset để được start lại
+      startCrawling();
+      sendResponse({ success: true });
+    }
+  } catch (error) {
+    console.error("Lỗi khi xử lý message:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+  return true;
+});
