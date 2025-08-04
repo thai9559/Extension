@@ -239,12 +239,10 @@ function extractPlaceData() {
     phone: "",
     website: "",
     facebook: "",
-    rating: "",
-    reviews: "",
     category: "",
     coordinates: "",
-    openingHours: "",
     description: "",
+    mapsUrl: "",
     timestamp: new Date().toISOString(),
   };
 
@@ -368,41 +366,6 @@ function extractPlaceData() {
       }
     }
 
-    // Tìm rating
-    const ratingSelectors = [
-      ".F7nice span",
-      '[aria-label*="rating"]',
-      ".lAiUod",
-    ];
-
-    for (let selector of ratingSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        const ratingText = element.textContent.trim();
-        if (ratingText.includes(".")) {
-          placeData.rating = ratingText;
-          break;
-        }
-      }
-    }
-
-    // Tìm số reviews
-    const reviewsSelectors = [
-      ".F7nice span:last-child",
-      '[aria-label*="review"]',
-    ];
-
-    for (let selector of reviewsSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        const reviewsText = element.textContent.trim();
-        if (reviewsText.includes("review")) {
-          placeData.reviews = reviewsText;
-          break;
-        }
-      }
-    }
-
     // Tìm category
     const categorySelectors = [".DkEaL", '[data-attrid="category"]'];
 
@@ -411,43 +374,6 @@ function extractPlaceData() {
       if (element) {
         placeData.category = element.textContent.trim();
         break;
-      }
-    }
-
-    // Tìm giờ mở cửa
-    const hoursSelectors = [
-      '[data-item-id="oh"]',
-      '[data-attrid="oh"]',
-      '.rogA2c[aria-label*="giờ"]',
-      '.rogA2c[aria-label*="hours"]',
-    ];
-
-    // Thử các selector cơ bản trước
-    for (let selector of hoursSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        placeData.openingHours = element.textContent.trim();
-        break;
-      }
-    }
-
-    // Nếu chưa tìm thấy, tìm kiếm các element .rogA2c có chứa text liên quan đến giờ mở cửa
-    if (!placeData.openingHours) {
-      const rogElements = document.querySelectorAll(".rogA2c");
-      for (let element of rogElements) {
-        const text = element.textContent.trim();
-        if (
-          text.includes("Đang mở cửa") ||
-          text.includes("Mở cửa") ||
-          text.includes("giờ") ||
-          text.includes("hours") ||
-          text.includes("Open") ||
-          text.includes("Closed")
-        ) {
-          placeData.openingHours = text;
-          console.log("Tìm thấy giờ mở cửa:", text);
-          break;
-        }
       }
     }
 
@@ -482,6 +408,8 @@ function extractPlaceData() {
         }
       }
     }
+
+    placeData.mapsUrl = window.location.href;
 
     // Lấy coordinates từ URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -851,6 +779,7 @@ setInterval(() => {
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   try {
     if (request.action === "startCrawl") {
+      crawlLimit = request.limit || 0;
       startCrawling();
       sendResponse({ success: true });
     } else if (request.action === "stopCrawl") {

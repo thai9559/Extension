@@ -138,43 +138,29 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      // Hàm tách địa chỉ thành các phần
-      function parseAddress(address) {
-        if (!address) return {};
-        address = address
-          .replace(/,\s*Việt Nam/i, "")
-          .replace(/\d{5,6}/g, "")
-          .trim();
-        const parts = address.split(",").map((p) => p.trim());
-        const partLen = parts.length;
+      // 🔍 Lọc bỏ dữ liệu trùng lặp theo NAME + ADDRESS
+      const uniqueData = [];
+      const uniqueSet = new Set();
 
-        let street = "",
-          ward = "",
-          district = "",
-          city = "";
-        if (partLen >= 4) {
-          city = parts[partLen - 1];
-          district = parts[partLen - 2];
-          ward = parts[partLen - 3];
-          street = parts.slice(0, partLen - 3).join(", ");
-        } else if (partLen === 3) {
-          city = parts[2];
-          district = parts[1];
-          street = parts[0];
-        } else {
-          street = address;
+      raw.forEach((item) => {
+        const key = (
+          (item.name || "") +
+          "|" +
+          (item.address || "")
+        ).toLowerCase();
+        if (!uniqueSet.has(key)) {
+          uniqueSet.add(key);
+          uniqueData.push(item);
         }
+      });
 
-        return {
-          street,
-          ward,
-          district,
-          city,
-        };
+      if (uniqueData.length === 0) {
+        showStatus("Không có dữ liệu sau khi lọc trùng", "error");
+        return;
       }
 
       // 🧹 1. Làm sạch và định dạng lại dữ liệu
-      const cleanedData = raw.map((item, index) => {
+      const cleanedData = uniqueData.map((item, index) => {
         const cleanText = (text) =>
           typeof text === "string"
             ? text.replace(/^[^\w\d\s]+/g, "").trim()
@@ -211,9 +197,10 @@ document.addEventListener("DOMContentLoaded", function () {
           FACEBOOK: item.facebook || "",
           WEBSITE: item.website || "",
           PHONE: phone,
-          OPENING_HOURS: item.openingHours || "",
-          RATING: item.rating || "",
-          REVIEWS: item.reviews || "",
+          // OPENING_HOURS: item.openingHours || "",
+          // RATING: item.rating || "",
+          // REVIEWS: item.reviews || "",
+          MAPS_URL: item.mapsUrl || "",
           TIMESTAMP: date,
         };
       });
@@ -275,11 +262,46 @@ document.addEventListener("DOMContentLoaded", function () {
               "error"
             );
           } else {
-            showStatus("✅ Đã xuất Excel có định dạng chuẩn", "success");
+            showStatus("✅ Đã xuất Excel (đã lọc trùng) thành công", "success");
           }
         }
       );
     });
+
+    // Hàm tách địa chỉ thành các phần
+    function parseAddress(address) {
+      if (!address) return {};
+      address = address
+        .replace(/,\s*Việt Nam/i, "")
+        .replace(/\d{5,6}/g, "")
+        .trim();
+      const parts = address.split(",").map((p) => p.trim());
+      const partLen = parts.length;
+
+      let street = "",
+        ward = "",
+        district = "",
+        city = "";
+      if (partLen >= 4) {
+        city = parts[partLen - 1];
+        district = parts[partLen - 2];
+        ward = parts[partLen - 3];
+        street = parts.slice(0, partLen - 3).join(", ");
+      } else if (partLen === 3) {
+        city = parts[2];
+        district = parts[1];
+        street = parts[0];
+      } else {
+        street = address;
+      }
+
+      return {
+        street,
+        ward,
+        district,
+        city,
+      };
+    }
   });
 
   // Xóa dữ liệu
